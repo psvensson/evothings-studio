@@ -64,7 +64,7 @@ var mHeartbeatInterval = 20000
 var mCLientInfo = undefined
 
 // The current base directory. Must NOT end with a slash.
-var mBasePath = ''
+var mBasePaths = {}
 
 /*********************************/
 /***	 Server functions	   ***/
@@ -151,6 +151,11 @@ exports.connectToRemoteServer = function()
 			handler(socket, message)
 		}
 	})
+}
+
+function getBasePathForAppID(appID)
+{
+	return mBasePaths[appID]
 }
 
 function heartbeat()
@@ -251,6 +256,7 @@ function onMessageWorkbenchGetResource(socket, message)
 	var response = serveResource(
 		message.data.platform,
 		message.data.path,
+		message.data.appID,
 		ifModifiedSince)
 
 	sendMessageToServer(socket, 'workbench.resource-response',
@@ -355,10 +361,10 @@ function serveUsingResponse304()
 /**
  * Internal.
  */
-function serveResource(platform, path, ifModifiedSince)
+function serveResource(platform, path, appID, ifModifiedSince)
 {
 	//console.log('[file-server.js] serveResource: ' + path)
-
+	var basePath = getBasePathForAppID(appID)
 	if (!path || path == '/')
 	{
 		// TODO: Serve something else? A default page?
@@ -372,10 +378,10 @@ function serveResource(platform, path, ifModifiedSince)
 	{
 		return serveCordovaFile(platform, path, ifModifiedSince)
 	}
-	else if (mBasePath)
+	else if (basePath)
 	{
 		return LOADER.response(
-			PATH.join(mBasePath, path),
+			PATH.join(basePath, path),
 			ifModifiedSince)
 	}
 	else
@@ -407,7 +413,7 @@ function serveFileOrNull(path)
  *
  * Serve Cordova JavaScript file for the platform making the request.
  */
-function serveCordovaFile(platform, path)
+function serveCordovaFile(platform, path, appID)
 {
 	// Two methods are used to find cordova files for the
 	// platform making the request.
@@ -433,16 +439,18 @@ function serveCordovaFile(platform, path)
 	//
 	// Set path to Cordova files in current project.
 	// Note that mBasePath ends with path separator.
+
+	var basePath = getBasePathForAppID(appID)
 	var androidCordovaAppPath =
-		mBasePath +
+		basePath +
 		'../platforms/android/assets/' +
 		'www' + path
 	var iosCordovaAppPath =
-		mBasePath +
+		basePath +
 		'../platforms/ios/' +
 		'www' + path
 	var wpCordovaAppPath =
-		mBasePath +
+		basePath +
 		'../platforms/wp8/' +
 		'www' + path
 
@@ -481,9 +489,9 @@ function serveCordovaFile(platform, path)
 /**
  * External.
  */
-exports.setAppPath = function(appPath)
+exports.setAppPath = function(appPath, appID)
 {
-	mBasePath = PATH.normalize(appPath.replace(new RegExp('\\' + PATH.sep, 'g'), '/'))
+	mBasePaths[appID] = PATH.normalize(appPath.replace(new RegExp('\\' + PATH.sep, 'g'), '/'))
 }
 
 /**
@@ -515,18 +523,21 @@ exports.getAppFileName = function()
 /**
  * External.
  */
+/*
 exports.getAppPath = function()
 {
 	return PATH.join(mBasePath, mAppFile)
 }
-
+*/
 /**
  * External.
  */
+/*
 exports.getBasePath = function()
 {
 	return mBasePath
 }
+*/
 
 /**
  * External.
@@ -541,6 +552,7 @@ exports.getAppServerURL = function()
  */
 function getAppURL()
 {
+	// mAppId  from evothings.json
 	return '/' + mAppID + '/' + mAppFile
 }
 
@@ -562,7 +574,7 @@ exports.getClientInfo = function()
  *
  * Reloads the main HTML file of the current app.
  */
-exports.runApp = function()
+exports.runApp = function(appID)
 {
 	//serveUsingResponse200()
 	serveUsingResponse304()
@@ -570,8 +582,8 @@ exports.runApp = function()
 	sendMessageToServer(mSocket, 'workbench.run',
 		{
 			sessionID: mSessionID,
-			appID: mAppID,
-			appName: hyper.UI.getProjectNameFromFile(exports.getAppPath()),
+			appID: appID, // from evothings.json
+			appName: hyper.UI.getProjectNameFromFile(exports.getAppPath()), // title tag, not critical
 			url: getAppURL()
 		})
 }
@@ -581,13 +593,13 @@ exports.runApp = function()
  *
  * Reloads the currently visible page of the browser.
  */
-exports.reloadApp = function()
+exports.reloadApp = function(appID)
 {
 	serveUsingResponse304()
 	sendMessageToServer(mSocket, 'workbench.reload',
 		{
 			sessionID: mSessionID,
-			appID: mAppID,
+			appID: appID,
 			appName: hyper.UI.getProjectNameFromFile(exports.getAppPath())
 		})
 	mReloadCallback && mReloadCallback()

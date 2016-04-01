@@ -184,6 +184,7 @@ exports.defineBuildFunctions = function(hyper)
 	 */
 	function buildAppIfNeeded(fullPath, changedFiles, buildCallback)
 	{
+		var rv = {}
 		// Standard HTML file project.
 		if (FILEUTIL.fileIsHTML(fullPath))
 		{
@@ -234,7 +235,7 @@ exports.defineBuildFunctions = function(hyper)
 			// Set server www path. Build continues below.
 			SERVER.setAppPath(PATH.join(fullPath, wwwDir))
 			SERVER.setAppFileName(indexFile)
-			SERVER.setAppID(APP_SETTINGS.getAppID(fullPath))
+			SERVER.setAppID(APP_SETTINGS.getAppID(fullPath)) // =============== YES =================
 			MONITOR.setBasePath(PATH.join(fullPath, appDir))
 		}
 		else
@@ -308,6 +309,60 @@ exports.defineBuildFunctions = function(hyper)
 
 			return normalizedSourceFiles
 		}
+	}
+
+	function getAppParameters(fullPath)
+	{
+		var appBasePath
+		var indexFile
+		var appFileName
+
+		var appID
+		// Get app to run from evothings.json.
+
+		// Get app source dir from evothings.json.
+		var appDir = APP_SETTINGS.getAppDir(fullPath)
+		// Get www dir.
+		var wwwDir = APP_SETTINGS.getWwwDir(fullPath)
+
+		if(!appDir || !wwwDir)
+		{
+			// Get paths using the location of the index.html file used. (Old style)
+			//appPath = PATH.dirname(fullPath)
+			indexFile = PATH.basename(fullPath)
+
+
+			// Set app id, will create evothings.json with new id if not existing.
+			appID = APP_SETTINGS.getAppID(appBasePath)
+
+			// Set server paths using the location of the HTML file.
+			var appBasePath = PATH.dirname(fullPath)
+			var indexFile = PATH.basename(fullPath)
+			SERVER.setAppPath(appBasePath)
+			SERVER.setAppFileName(indexFile)
+			// Set app id, will create evothings.json with new id if not existing.
+			SERVER.setAppID(APP_SETTINGS.getAppID(appBasePath))
+			MONITOR.setBasePath(appBasePath)
+		}
+		else
+		{
+			// evothings.json contains directory info
+			appPath = PATH.join(fullPath, wwwDir)
+			appID = APP_SETTINGS.getAppID(fullPath)
+			basePath = PATH.join(fullPath, appDir)
+			indexFile = APP_SETTINGS.getIndexFile(fullPath)
+		}
+
+		// Set server www path. Build continues below.
+		var rv =
+		{
+			indexFile: indexFile,
+			appPath: appPath,
+			appFilename: indexFile,
+			appID: appID,
+			basePath: basePath
+		}
+		return rv
 	}
 
 	function buildAppFiles(sourcePath, sourceFiles, destPath, dontBuildDirs, doneCallback)
